@@ -1,0 +1,15 @@
+name = "ThermodynamicDataEstimator"
+uuid = "12d9df22-def0-4839-b52c-84cca9ea10af"
+authors = ["Jan Leppert <jleppert@uni-bonn.de>"]
+version = "0.1.0"
+
+[deps]
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+GasChromatographySimulator = "dd82b6e2-56ef-419d-b271-0be268cb65f5"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[compat]
+GasChromatographySimulator = "0.1.7"
+Reexport = "1.2.2"
+julia = "1.5.3"

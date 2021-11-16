@@ -1,0 +1,17 @@
+[x] test automatic differentiation with ODE-solutions
+[x] what to do about phi_0 and phi? phi_0 is the dimensionless film thickness
+**for which the thermodynamic parameters** are estimated -> here it should be
+identical with phi (the actual value of the column) -> calculate phi_0 from d
+and df, like phi!
+[] define a function for optimization, e.g. S(d/L, df/d, Tchar_j, \thetachar_j,
+DeltaCp_j) = sum_i(sum_j((tR_{meas,i,j}-tR_{calc,i,j})^2)))
+[] rewrite new versions of tR-calculation, which are automatic differentiable
+[] input data:
+    [] what data
+    [] format of the data
+[] example set of data for the development (6 or more different temperature
+programs with at least 5 solutes)
+[] which format of thermodynamic parameters ('ABC' or 'T_char, theta_char,
+DeltaCp' (K-centric parameters)) 
+[] additional parameters, like phase ratio beta, or ration d/L
+[] initial estimations for the parameters
