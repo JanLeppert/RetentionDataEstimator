@@ -29,6 +29,10 @@ md"""
 # ╔═╡ f3ab4008-8851-4ba2-87bc-eb54ebbc0d7d
 md"""
 ## Construct a test system
+
+!!! note
+
+	This section and section "Simulate the test system" in separate notebook.
 """
 
 # ╔═╡ 02ec232f-83f8-4b60-afed-904cdc08e106
@@ -116,6 +120,10 @@ The difference between the two simulation modes (ODEsystem and migration only) r
 # ╔═╡ 708d03c2-546e-4f89-be85-f9d57e656a01
 md"""
 ## Create measurements
+
+!!! note
+
+	Make second notebook which uses real measurements as test data instead of simulations.
 """
 
 # ╔═╡ 94424a15-c0fb-4f0c-be1c-6146585f1e25
@@ -170,7 +178,7 @@ begin
 end
 
 # ╔═╡ 915a8459-2265-4a7d-9113-de562dfc02a5
-ii = 7
+ii = 1
 
 # ╔═╡ 322d274a-bfc7-46af-999a-6d3076f905c3
 plot(GasChromatographySimulator.plot_temperature(par_meas[ii]), GasChromatographySimulator.plot_flow(par_meas[ii]))
@@ -255,6 +263,7 @@ end
 
 # ╔═╡ da71a8b5-05c6-4911-8630-8b0363e4fbc7
 begin
+	plotly()
 	plot_Tchar = scatter(1:size(TR_meas)[2], Tchar, label="true value", ylabel="Tchar in K")
 	scatter!(plot_Tchar, 1:size(TR_meas)[2], Tchar_e, label="1st estimate")
 	plot_θchar = scatter(1:size(TR_meas)[2], θchar, label="true value", ylabel="θchar in °C")
@@ -398,9 +407,10 @@ end
 
 # ╔═╡ 9a68d8f3-444e-4d10-8098-a1cf18455d75
 begin
+	plotly()
 	scatter!(plot_Tchar, 1:size(TR_meas)[2], Tchar_opt_all, label="optimized_all", m=:+, legend=:bottomright)
-	scatter!(plot_θchar, 1:size(TR_meas)[2], θchar_opt_all, label="optimized", m=:+, legend=:bottomright)
-	scatter!(plot_ΔCp, 1:size(TR_meas)[2], ΔCp_opt_all, label="optimized", m=:+, legend=:bottomright)
+	scatter!(plot_θchar, 1:size(TR_meas)[2], θchar_opt_all, label="optimized_all", m=:+, legend=:bottomright)
+	scatter!(plot_ΔCp, 1:size(TR_meas)[2], ΔCp_opt_all, label="optimized_all", m=:+, legend=:bottomright)
 	plot(plot_Tchar, plot_θchar, plot_ΔCp)
 end
 
