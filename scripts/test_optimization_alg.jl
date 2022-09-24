@@ -4,7 +4,7 @@ using Plots
 using Optimization
 using OptimizationOptimJL
 using OptimizationBBO
-using Interpolations
+using Dierckx
 
 # test system (put this in a function)
 # function to create a conventional GC-system to calculate test chromatograms
@@ -85,10 +85,29 @@ heating_rates_def = heating_rates
 TPs_def = TPs
 PPs_def = PPs
 par_def = par_meas
-#       - hold-up time calculated for the time of the program, when T=Tref
-t_ = par_def[1].prog.time_steps
-T_ = par_def[1].prog.temp_steps
 
-interp_linear = linear_interpolation(T_, t_)
-tMref_def = GasChromatographySimulator.holdup_time(150.0+273.15, 1.0/(60*1e6), 0.0, L_def, d_def, gas, control="Pressure")/60.0 
+"""
+    reference_holdup_time(prog, L, d, fas; control="Pressure")
+
+Description.
+"""
+function reference_holdup_time(prog, L, d, gas; control="Pressure")
+    Tref = 150.0
+    # estimate the time of the temperature program for T=Tref
+    t_ = prog.time_steps
+    T_ = prog.temp_steps
+    spl = Spline1D(cumsum(t_), T_ .- Tref)
+    tref = roots(spl)[1]
+    # inlet and outlet pressure at time tref
+    Fpin_ref = prog.Fpin_itp(tref)
+    pout_ref = prog.pout_itp(tref)
+    # hold-up time calculated for the time of the program, when T=Tref
+    tMref = GasChromatographySimulator.holdup_time(Tref+273.15, Fpin_ref, pout_ref, L, d, gas, control=control)
+    return tMref
+end
+
+tMref_def = Array{Float64}(undef, length(TPs))
+for i=1:length(TPs)
+    tMref_def[i] = reference_holdup_time(par_def[i].prog, L_def, d_def, gas; control="Pressure")/60.0
+end 
 # 1. Start values of the parameters
