@@ -5,48 +5,11 @@ using Optimization
 using OptimizationOptimJL
 using OptimizationBBO
 using Dierckx
+using BenchmarkTools
+
+include("/Users/janleppert/Documents/GitHub/ThermodynamicDataEstimator/src/ThermodynamicDataEstimator.jl")
 
 # test system (put this in a function)
-# function to create a conventional GC-system to calculate test chromatograms
-"""
-    conventional_GC(L, d, df, sp, gas, TP, PP, solutes, db_path, db_file)
-
-Description.
-"""
-function conventional_GC(L, d, df, sp, gas, TP, PP, solutes, db_path, db_file)
-	opt = GasChromatographySimulator.Options()
-	col = GasChromatographySimulator.Column(L, d, df, sp, gas)
-	prog = GasChromatographySimulator.Program(TP, PP, L; pout="vacuum", time_unit="min")
-	sub = GasChromatographySimulator.load_solute_database(db_path, db_file, sp, gas, solutes, zeros(length(solutes)), zeros(length(solutes)))
-	par = GasChromatographySimulator.Parameters(col, prog, sub, opt)
-	return par
-end
-
-"""
-    sim_test_chrom(L, d, df, sp, gas, TPs, PPs, solutes, db_path, db_file)
-
-Description.
-"""
-function sim_test_chrom(L, d, df, sp, gas, TPs, PPs, solutes, db_path, db_file)
-    par_meas = Array{GasChromatographySimulator.Parameters}(undef, length(heating_rates))
-    for i=1:length(heating_rates)
-        par_meas[i] = conventional_GC(L, d, df, sp, gas, TPs[i], PPs[i], solutes, db_path, db_file)
-    end
-
-    #pl_meas = Array{DataFrame}(undef, length(TPs))
-    tR_meas = Array{Float64}(undef, length(TPs), length(solutes))
-    tR_meas_randn = Array{Float64}(undef, length(TPs), length(solutes))
-    for i=1:length(TPs)
-        pl_meas = GasChromatographySimulator.simulate(par_meas[i])[1]
-        for j=1:length(solutes)
-            jj = findfirst(pl_meas.Name.==solutes[j])
-            tR_meas[i,j] = pl_meas.tR[jj]
-            tR_meas_randn[i,j] = pl_meas.tR[jj]*(1+randn()*0.005) # add here a random ± time
-        end
-    end
-    return tR_meas, tR_meas_randn, par_meas
-end
-
 # Definitions
 db_path = "/Users/janleppert/Documents/GitHub/GasChromatographySimulator/data"
 db_file = "Database_test.csv"
@@ -72,7 +35,7 @@ sp = "SLB5ms"
 gas = "He"
 
 # simulate test data
-tR_meas, tR_meas_randn, par_meas = sim_test_chrom(L, d, df, sp, gas, TPs, PPs, solutes, db_path, db_file)
+tR_meas, tR_meas_rand, par_meas = ThermodynamicDataEstimator.sim_test_chrom(L, d, df, sp, gas, TPs, PPs, solutes, db_path, db_file)
 
 
 ## here the estimation of the parameters begins
@@ -86,28 +49,69 @@ TPs_def = TPs
 PPs_def = PPs
 par_def = par_meas
 
-"""
-    reference_holdup_time(prog, L, d, fas; control="Pressure")
-
-Description.
-"""
-function reference_holdup_time(prog, L, d, gas; control="Pressure")
-    Tref = 150.0
-    # estimate the time of the temperature program for T=Tref
-    t_ = prog.time_steps
-    T_ = prog.temp_steps
-    spl = Spline1D(cumsum(t_), T_ .- Tref)
-    tref = roots(spl)[1]
-    # inlet and outlet pressure at time tref
-    Fpin_ref = prog.Fpin_itp(tref)
-    pout_ref = prog.pout_itp(tref)
-    # hold-up time calculated for the time of the program, when T=Tref
-    tMref = GasChromatographySimulator.holdup_time(Tref+273.15, Fpin_ref, pout_ref, L, d, gas, control=control)
-    return tMref
+prog_def = Array{GasChromatographySimulator.Program}(undef, length(TPs_def))
+for i=1:length(TPs_def)
+    prog_def[i] = GasChromatographySimulator.Program(TPs_def[i], PPs_def[i], L_def; pout="vacuum", time_unit="min")
 end
 
-tMref_def = Array{Float64}(undef, length(TPs))
-for i=1:length(TPs)
-    tMref_def[i] = reference_holdup_time(par_def[i].prog, L_def, d_def, gas; control="Pressure")/60.0
-end 
 # 1. Start values of the parameters
+Tchar_est, θchar_est, ΔCp_est = ThermodynamicDataEstimator.estimate_start_parameter(tR_meas, TPs_def, PPs_def, L_def, d_def, gas; pout="vacuum", time_unit="min", control="Pressure")
+
+# true values of the Kcentric parameters
+Tchar = Array{Float64}(undef, length(solutes))
+θchar = Array{Float64}(undef, length(solutes))
+ΔCp = Array{Float64}(undef, length(solutes))
+for i=1:length(solutes)
+    Tchar[i] = par_meas[1].sub[i].Tchar
+    θchar[i] = par_meas[1].sub[i].θchar
+    ΔCp[i] = par_meas[1].sub[i].ΔCp
+end
+
+# 2. Optimization
+# optimize every solute separatly
+function optimize_Kcentric_single(tR, L, d, gas, prog, opt, Tchar_e, θchar_e, ΔCp_e, method, lb_Tchar, lb_θchar, lb_ΔCp, ub_Tchar, ub_θchar, ub_ΔCp)
+	optf = OptimizationFunction(ThermodynamicDataEstimator.opt_Kcentric, Optimization.AutoForwardDiff())
+	
+    opt_sol = Array{Any}(undef, size(tR)[2])
+	for i=1:size(tR)[2]
+		p = [tR[:,i], L, d, prog, opt, gas]
+		x0 = [Tchar_e[i], θchar_e[i], ΔCp_e[i]]
+		lb = [lb_Tchar[i], lb_θchar[i], lb_ΔCp[i]]
+		ub = [ub_Tchar[i], ub_θchar[i], ub_ΔCp[i]]
+		if method == NelderMead() || method == NewtonTrustRegion() || Symbol(method) == Symbol(Newton())
+			prob = OptimizationProblem(optf, x0, p)
+		else
+			prob = OptimizationProblem(optf, x0, p, lb=lb, ub=ub)
+		end
+		opt_sol[i] = solve(prob, method)
+	end
+	return opt_sol
+end
+
+opt = GasChromatographySimulator.Options(ng=true)
+
+methods = [NelderMead(), NewtonTrustRegion(), Newton()] # add more methods
+# exact retention times
+sol_single = Array{Any}(undef, length(methods))
+for i=1:length(methods)
+    sol_single[i] = optimize_Kcentric_single(tR_meas, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[i], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+end
+# shifted retention times
+sol_single_rand = Array{Any}(undef, length(methods))
+for i=1:length(methods)
+    sol_single_rand[i] = optimize_Kcentric_single(tR_meas_rand, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[i], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+end
+
+# benchmark time measurement 
+b_single = Array{Any}(undef, length(methods))
+b_single_rand = Array{Any}(undef, length(methods))
+#for i=1:length(methods)
+    b_single[1] = @benchmark optimize_Kcentric_single(tR_meas, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[1], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+    b_single[2] = @benchmark optimize_Kcentric_single(tR_meas, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[2], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+    b_single[3] = @benchmark optimize_Kcentric_single(tR_meas, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[3], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+    b_single_rand[1] = @benchmark optimize_Kcentric_single(tR_meas_rand, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[1], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+    b_single_rand[2] = @benchmark optimize_Kcentric_single(tR_meas_rand, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[2], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+    b_single_rand[3] = @benchmark optimize_Kcentric_single(tR_meas_rand, L_def, d_def, "He", prog_def, opt, Tchar_est, θchar_est, ΔCp_est, methods[3], Tchar_est*0.9, θchar_est*0.8, ΔCp_est*0.5, Tchar_est*1.1, θchar_est*1.2, ΔCp_est*1.5)
+#end
+
+# save/export the results and benchmark times to .csv 
