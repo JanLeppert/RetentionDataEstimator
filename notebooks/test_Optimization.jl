@@ -301,18 +301,6 @@ end
 # ╔═╡ 286c8e0c-c4a2-4199-8a67-4da5f7da4380
 methode=Optim.Newton()
 
-# ╔═╡ 6d858656-7013-4423-8e0e-cc1441fdab02
-Symbol(Optim.Newton()) === Symbol(Optim.Newton())
-
-# ╔═╡ 8d05960e-3173-4b1f-9189-e08ee4634e90
-Newton() == Optim.Newton()
-
-# ╔═╡ 1b5ebfd3-a71b-437b-b65d-32ac59ab4610
-(methode == NelderMead()) || (methode == NewtonTrustRegion()) || (Symbol(methode) == Symbol(Newton()))
-
-# ╔═╡ fe9cca7f-d940-44b3-bdc4-0cecb0bc580e
-methode == Optim.Newton()
-
 # ╔═╡ 9120341e-3918-4bec-93ba-2ff048443b29
 [(Tchar_e*0.9)[1], (θchar_e*0.8)[1], (ΔCp*0.5)[1]]
 
@@ -469,10 +457,6 @@ md"""
 # ╠═599cf329-ed37-453c-a190-b909847c1ec9
 # ╠═2cf2e9ff-7222-4bfb-9fa4-1d565c9eb510
 # ╠═286c8e0c-c4a2-4199-8a67-4da5f7da4380
-# ╠═6d858656-7013-4423-8e0e-cc1441fdab02
-# ╠═8d05960e-3173-4b1f-9189-e08ee4634e90
-# ╠═1b5ebfd3-a71b-437b-b65d-32ac59ab4610
-# ╠═fe9cca7f-d940-44b3-bdc4-0cecb0bc580e
 # ╠═9120341e-3918-4bec-93ba-2ff048443b29
 # ╠═8d84186c-b233-4c35-8982-7d6be6e36d43
 # ╠═572e036d-aefc-45ae-ab3f-6ce9a9cf3669
