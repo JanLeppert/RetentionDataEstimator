@@ -6,6 +6,14 @@ using ForwardDiff
 using Optimization
 using OptimizationOptimJL
 using OptimizationBBO
+using Dierckx
+
+include("Estimate_Start_Values.jl")
+include("Simulate_Test.jl")
+
+const θref = 30.0
+const rT_nom = 0.6
+const Tst = 273.15
 
 # measured retention times for m GC-programs and n solutes is stored in a mxn matrix tR_meas
 
